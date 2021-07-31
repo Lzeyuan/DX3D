@@ -1,6 +1,8 @@
 #pragma once
 #include "ExcludeMacro.h"
 #include "WindowException.h"
+#include "Keyboard.h"
+#include "Mouse.h"
 
 class Window
 {
@@ -25,7 +27,7 @@ private:
 		static const char* GetName() noexcept;
 		static HINSTANCE GetInstance() noexcept;
 	private:
-		WindowClass();
+		WindowClass() noexcept;
 		~WindowClass();
 		WindowClass(const WindowClass&) = delete;
 		WindowClass(const WindowClass&&) = delete;
@@ -36,21 +38,28 @@ private:
 		HINSTANCE hInst;
 	};
 public:
+	// BIG 5
 	Window(int width, int height, const char* name);
-	~Window();
 	Window(const Window&) = delete;
 	Window(const Window&&) = delete;
 	Window& operator=(const Window&) = delete;
 	Window& operator=(const Window&&) = delete;
+	~Window();
+
+	void SetTitle(const std::string& title);
 private:
 	static LRESULT CALLBACK HandleMsgSetup(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
 	static LRESULT CALLBACK HandleMsgThunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
 	LRESULT HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
+public:
+	Keyboard kbd;
+	Mouse mouse;
 private:
-	int widht;
+	int width;
 	int height;
 	HWND hWnd;
 };
 
 // error exception helper macro
 #define CHWND_EXCEPT(hr) Window::Exception(__LINE__, __FILE__, hr)
+#define CHWND_LAST_EXCEPT() Window::Exception(__LINE__, __FILE__, GetLastError())

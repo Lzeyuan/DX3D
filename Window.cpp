@@ -4,7 +4,7 @@
 // Window Class
 Window::WindowClass Window::WindowClass::wndClass;
 
-Window::WindowClass::WindowClass() noexcept:
+Window::WindowClass::WindowClass() noexcept :
 	hInst(GetModuleHandle(nullptr))
 {
 	WNDCLASSEX wc = { 0 };
@@ -40,6 +40,9 @@ HINSTANCE Window::WindowClass::GetInstance() noexcept
 
 // Window
 Window::Window(int width, int height, const char* name)
+	:
+	width(width),
+	height(height)
 {
 	RECT wr;
 	wr.left = 100;
@@ -47,7 +50,8 @@ Window::Window(int width, int height, const char* name)
 	wr.top = 100;
 	wr.bottom = height + wr.top;
 
-	throw CHWND_EXCEPT(ERROR_ARENA_TRASHED);
+	// 测试自定义异常类
+	//throw CHWND_EXCEPT(ERROR_ARENA_TRASHED);
 
 	// 根据RECT创建一个客户区所需大小的窗口
 	AdjustWindowRect(&wr, WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU, FALSE);
@@ -60,10 +64,17 @@ Window::Window(int width, int height, const char* name)
 	ShowWindow(hWnd, SW_SHOWDEFAULT);
 }
 
-
 Window::~Window()
 {
 	DestroyWindow(hWnd);
+}
+
+void Window::SetTitle(const std::string& title)
+{
+	if (SetWindowText(hWnd, title.c_str()) == 0)
+	{
+		throw CHWND_LAST_EXCEPT();
+	}
 }
 
 LRESULT CALLBACK Window::HandleMsgSetup(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept
@@ -100,6 +111,86 @@ LRESULT Window::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noe
 	case WM_CLOSE:
 		PostQuitMessage(90);
 		return 0;
+	case WM_KILLFOCUS:
+		kbd.ClearState();
+		break;
+	/*********** KEYBOARD MESSAGES ***********/
+	case WM_KEYDOWN:
+	case WM_SYSKEYDOWN:
+		// https://docs.microsoft.com/zh-cn/windows/win32/inputdev/wm-keydown
+		// 如果按键没按下lParam为1，否则按键已被按下，lPram为0
+		if (!(lParam & 0x400000000) || kbd.AutorepeatIsEnabled())
+		{
+			kbd.OnKeyPressed(static_cast<uint8_t>(wParam));
+		}
+		break;
+	case WM_KEYUP:
+	case WM_SYSKEYUP:
+		kbd.OnKeyReleased(static_cast<uint8_t>(wParam));
+		break;
+	case WM_CHAR:
+		kbd.OnChar(static_cast<unsigned char>(wParam));
+		break;
+	/*********** END KEYBOARD MESSAGES ***********/
+	/*********** 鼠标事件 ***********/
+	case WM_MOUSEMOVE:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		if (pt.x >= 0 && pt.x < width && pt.y >=0 && pt.y < height) 
+		{
+			mouse.OnMouseMove(pt.x, pt.y);
+			if (!mouse.IsInWindow())
+			{
+				SetCapture(hWnd);
+				mouse.OnMouseEnter();
+			}
+		}
+		else
+		{
+			if (wParam & (MK_LBUTTON | MK_RBUTTON))
+			{
+				mouse.OnMouseMove(pt.x, pt.y);
+			}
+			else
+			{
+				ReleaseCapture();
+				mouse.OnMouseLeave();
+			}
+		}
+		break;
+	}
+	case WM_LBUTTONDOWN:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnLeftPressed(pt.x, pt.y);
+		break;
+	}
+	case WM_RBUTTONDOWN:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnRightPressed(pt.x, pt.y);
+		break;
+	}
+	case WM_LBUTTONUP:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnLeftReleased(pt.x, pt.y);
+		break;
+	}
+	case WM_RBUTTONUP:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		mouse.OnLeftReleased(pt.x, pt.y);
+		break;
+	}
+	case WM_MOUSEWHEEL:
+	{
+		const POINTS pt = MAKEPOINTS(lParam);
+		const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+		mouse.OnWheelDelta(pt.x, pt.y, delta);
+		break;
+	}
+	/*********** 鼠标事件 END ***********/
 	default:
 		break;
 	}
